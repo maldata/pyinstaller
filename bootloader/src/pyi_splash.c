@@ -956,7 +956,8 @@ _splash_init(ClientData client_data)
     /* Extract the frame duration data and put it in an array called _frame_ms.
      * The array indices will simply be integers. */
     int bytes_for_duration_array = splash->num_frames * sizeof(uint32_t);
-    Tcl_Obj* frame_duration_obj = PI_Tcl_NewByteArrayObj(splash->frame_durations_ms, bytes_for_duration_array);
+    const unsigned char* array_bytes = (unsigned char*)splash->frame_durations_ms;
+    Tcl_Obj* frame_duration_obj = PI_Tcl_NewByteArrayObj(array_bytes, bytes_for_duration_array);
     for (int i = 0; i < splash->num_frames; i++) {
         int index_str_len = snprintf(NULL, 0, "%d", i);
         char* index_str = malloc(index_str_len + 1);
