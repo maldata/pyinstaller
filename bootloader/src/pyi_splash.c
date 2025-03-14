@@ -88,7 +88,7 @@ pyi_splash_setup(struct SPLASH_CONTEXT *splash, const struct PYI_CONTEXT *pyi_ct
      *
      * NOTE: the name fields in SPLASH_DATA_HEADER are 16 characters wide,
      * and are *implicitly* NUL terminated; the build process uses zero
-     * padding and is ensuring that strings themselves have no more than
+     * padding and is ensuring that strings themselves are no more than
      * 15 characters long. */
 
     /* Tcl shared library */
@@ -124,7 +124,13 @@ pyi_splash_setup(struct SPLASH_CONTEXT *splash, const struct PYI_CONTEXT *pyi_ct
     splash->requirements_len = pyi_be32toh(data_header->requirements_len);
     splash->requirements = (char *)malloc(splash->requirements_len);
 
-    if (splash->script == NULL || splash->image == NULL || splash->requirements == NULL) {
+    /* Copy the frame durations into a buffer owned by SPLASH_STATUS */
+    int bytes_for_duration_array = data_header->num_frames * sizeof(uint32_t);
+    splash->num_frames = pyi_be32toh(data_header->num_frames);
+    splash->frame_durations_ms = (uint32_t*)malloc(bytes_for_duration_array);
+
+    if (splash->script == NULL || splash->image == NULL ||
+        splash->requirements == NULL || splash->frame_durations_ms == NULL) {
         PYI_ERROR("Could not allocate memory for splash screen resources.\n");
         free(data_header);
         return -1;
@@ -145,6 +151,11 @@ pyi_splash_setup(struct SPLASH_CONTEXT *splash, const struct PYI_CONTEXT *pyi_ct
         splash->requirements,
         ((char *)data_header) + pyi_be32toh(data_header->requirements_offset),
         splash->requirements_len
+    );
+    memcpy(
+        splash->frame_durations_ms,
+        ((char *)data_header) + pyi_be32toh(data_header->frame_times_offset),
+        bytes_for_duration_array
     );
 
     /* Free raw header data */
@@ -851,7 +862,6 @@ _splash_init(ClientData client_data)
 {
     int err = 0;
     struct SPLASH_CONTEXT *splash;
-    Tcl_Obj *image_data_obj;
 
     splash = (struct SPLASH_CONTEXT *)client_data;
 
@@ -940,8 +950,21 @@ _splash_init(ClientData client_data)
 
     /* Extract the image from the splash resources, and pass it to Tcl/Tk
      * via the `_image_data` variable. */
-    image_data_obj = PI_Tcl_NewByteArrayObj(splash->image, splash->image_len);
+    Tcl_Obj* image_data_obj = PI_Tcl_NewByteArrayObj(splash->image, splash->image_len);
     PI_Tcl_SetVar2Ex(splash->interp, "_image_data", NULL, image_data_obj, TCL_GLOBAL_ONLY);
+
+    /* Extract the frame duration data and put it in an array called _frame_ms.
+     * The array indices will simply be integers. */
+    int bytes_for_duration_array = splash->num_frames * sizeof(uint32_t);
+    const unsigned char* array_bytes = (unsigned char*)splash->frame_durations_ms;
+    Tcl_Obj* frame_duration_obj = PI_Tcl_NewByteArrayObj(array_bytes, bytes_for_duration_array);
+    for (int i = 0; i < splash->num_frames; i++) {
+        int index_str_len = snprintf(NULL, 0, "%d", i);
+        char* index_str = malloc(index_str_len + 1);
+        snprintf(index_str, index_str_len + 1, "%d", i);
+        PI_Tcl_SetVar2Ex(splash->interp, "_frame_ms", index_str, frame_duration_obj, TCL_GLOBAL_ONLY);
+        free(index_str);
+    }
 
     /* Tcl/Tk creates a copy of the image, so we can free our buffer */
     free(splash->image);

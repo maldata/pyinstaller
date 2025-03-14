@@ -323,17 +323,20 @@ class SplashWriter:
     #
     #     uint32_t image_len;
     #     uint32_t image_offset;
+    #     uint32_t num_frames;
+    #     uint32_t frame_times_offset;
     #
     #     uint32_t requirements_len;
     #     uint32_t requirements_offset;
     # } SPLASH_DATA_HEADER;
     #
-    _HEADER_FORMAT = '!16s 16s 16s II II II'
+    _HEADER_FORMAT = '!16s 16s 16s II IIII II'
     _HEADER_LENGTH = struct.calcsize(_HEADER_FORMAT)
 
     # The created archive is compressed by the CArchive, so no need to compress the data here.
 
-    def __init__(self, filename, name_list, tcl_libname, tk_libname, tklib, image, script):
+    def __init__(self, filename, name_list, tcl_libname, tk_libname,
+                 tklib, image, script, frame_durations_ms):
         """
         Writer for splash screen resources that are bundled into the CArchive as a single archive/entry.
 
@@ -344,6 +347,7 @@ class SplashWriter:
         :param str tklib: Root of tk library (e.g. tk/)
         :param Union[str, bytes] image: Image like object
         :param str script: The tcl/tk script to execute to create the screen.
+        :param list[int] frame_durations_ms: The duration of each frame
         """
 
         # Ensure forward slashes in dependency names are on Windows converted to back slashes '\\', as on Windows the
@@ -392,6 +396,11 @@ class SplashWriter:
                 fp.write(image_data)
                 del image_data
 
+            frame_times_offset = fp.tell()
+
+            ms_bytes = struct.pack('I'*len(frame_durations_ms), *frame_durations_ms)
+            fp.write(ms_bytes)
+
             # The following strings are written to 16-character fields with zero-padding, which means that we need to
             # ensure that their length is strictly below 16 characters (if it were exactly 16, the field would have no
             # terminating NULL character!).
@@ -415,6 +424,8 @@ class SplashWriter:
                 script_offset,
                 image_len,
                 image_offset,
+                len(frame_durations_ms),
+                frame_times_offset,
                 requirements_len,
                 requirements_offset,
             )

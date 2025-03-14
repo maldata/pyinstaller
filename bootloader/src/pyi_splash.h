@@ -39,6 +39,8 @@ struct SPLASH_DATA_HEADER
     /* Image data */
     uint32_t image_len;
     uint32_t image_offset;
+    uint32_t num_frames;
+    uint32_t frame_times_offset;
 
     /*
      * To only extract the necessary files from the archive, the following
@@ -100,12 +102,14 @@ struct SPLASH_CONTEXT
     char *script;
     int script_len;
 
-    /* Image to be show on the splash screen.
+    /* Image to be shown on the splash screen.
      * The image data pointer will eventually be NULL, because it is only
      * kept until the Tcl interpreter is fully set up, at which point it
      * copies the image data into its own data buffer. */
     void *image;
     int image_len;
+    uint32_t num_frames;
+    uint32_t* frame_durations_ms;
 
     /* To start Tcl/Tk, its files need to be present on the filesystem.
      * These fields describe an array of NULL-terminated strings, that
